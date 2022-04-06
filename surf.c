@@ -83,6 +83,7 @@ typedef enum {
 	Style,
 	WebGL,
 	ZoomLevel,
+	ClipboardNotPrimary,
 	ParameterLast
 } ParamName;
 
@@ -177,6 +178,7 @@ static void spawn(Client *c, const Arg *a);
 static void msgext(Client *c, char type, const Arg *a);
 static void destroyclient(Client *c);
 static void cleanup(void);
+static void updatehistory(const char *url, const char *title);
 
 /* GTK/WebKit */
 static WebKitWebView *newview(Client *c, WebKitWebView *rv);
@@ -233,6 +235,7 @@ static void togglefullscreen(Client *c, const Arg *a);
 static void togglecookiepolicy(Client *c, const Arg *a);
 static void toggleinspector(Client *c, const Arg *a);
 static void find(Client *c, const Arg *a);
+static void playexternal(Client *c, const Arg *a);
 
 /* Buttons */
 static void clicknavigate(Client *c, const Arg *a, WebKitHitTestResult *h);
@@ -291,6 +294,7 @@ static ParamName loadcommitted[] = {
 	SpellLanguages,
 	Style,
 	ZoomLevel,
+	ClipboardNotPrimary,
 	ParameterLast
 };
 
@@ -348,9 +352,10 @@ setup(void)
 	curconfig = defconfig;
 
 	/* dirs and files */
-	cookiefile = buildfile(cookiefile);
-	scriptfile = buildfile(scriptfile);
-	certdir    = buildpath(certdir);
+	cookiefile  = buildfile(cookiefile);
+	historyfile = buildfile(historyfile);
+	scriptfile  = buildfile(scriptfile);
+	certdir     = buildpath(certdir);
 	if (curconfig[Ephemeral].val.i)
 		cachedir = NULL;
 	else
@@ -659,6 +664,20 @@ updatetitle(Client *c)
 	} else {
 		gtk_window_set_title(GTK_WINDOW(c->win), name);
 	}
+}
+
+void
+updatehistory(const char *url, const char *title)
+{
+	FILE *f;
+	f = fopen(historyfile, "a+");
+
+	char timestamp[20];
+	time_t now = time (0);
+	strftime (timestamp, 20, "%Y-%m-%dT%H:%M:%S", localtime (&now));
+
+	fprintf(f, "%s|%s|%s\n", timestamp, url, title);
+	fclose(f);
 }
 
 void
@@ -1086,6 +1105,7 @@ cleanup(void)
 	close(spair[0]);
 	close(spair[1]);
 	g_free(cookiefile);
+	g_free(historyfile);
 	g_free(scriptfile);
 	g_free(stylefile);
 	g_free(cachedir);
@@ -1531,6 +1551,7 @@ loadchanged(WebKitWebView *v, WebKitLoadEvent e, Client *c)
 		break;
 	case WEBKIT_LOAD_FINISHED:
 		seturiparameters(c, uri, loadfinished);
+                updatehistory(uri, c->title);
 		/* Disabled until we write some WebKitWebExtension for
 		 * manipulating the DOM directly.
 		evalscript(c, "document.documentElement.style.overflow = '%s'",
@@ -1828,13 +1849,18 @@ showcert(Client *c, const Arg *a)
 void
 clipboard(Client *c, const Arg *a)
 {
+	/* User defined choice of selection, see config.h */
+	GdkAtom	selection = GDK_SELECTION_PRIMARY;
+	if (curconfig[ClipboardNotPrimary].val.i > 0)
+		selection = GDK_SELECTION_CLIPBOARD;
+
 	if (a->i) { /* load clipboard uri */
 		gtk_clipboard_request_text(gtk_clipboard_get(
-		                           GDK_SELECTION_PRIMARY),
+                                          selection),
 		                           pasteuri, c);
 	} else { /* copy uri */
 		gtk_clipboard_set_text(gtk_clipboard_get(
-		                       GDK_SELECTION_PRIMARY), c->targeturi
+		                       selection), c->targeturi
 		                       ? c->targeturi : geturi(c), -1);
 	}
 }
@@ -1983,6 +2009,15 @@ clickexternplayer(Client *c, const Arg *a, WebKitHitTestResult *h)
 	Arg arg;
 
 	arg = (Arg)VIDEOPLAY(webkit_hit_test_result_get_media_uri(h));
+	spawn(c, &arg);
+}
+
+void
+playexternal(Client *c, const Arg *a)
+{
+	Arg arg;
+
+	arg = (Arg)VIDEOPLAY(geturi(c));
 	spawn(c, &arg);
 }
 

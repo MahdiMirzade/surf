@@ -3,7 +3,7 @@
 # See the LICENSE file for copyright and license details. 
 #
 
-xidfile="$HOME/tmp/tabbed-surf.xid"
+xidfile="/tmp/tabbed-surf.xid"
 uri=""
 
 if [ "$#" -gt 0 ];
@@ -29,4 +29,3 @@ else
 		surf -e "$xid" "$uri" >/dev/null 2>&1 &
 	fi
 fi
-
