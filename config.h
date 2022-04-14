@@ -1,13 +1,16 @@
 /* modifier 0 means no modifier */
-static int surfuseragent    = 1;  /* Append Surf version to default WebKit user agent */
+
+//#define HOMEPAGE "https://duckduckgo.com/"
+#define HS_FILE "~/.config/surf/history"
+#define BM_FILE "~/.config/surf/bookmarks"
+
+static int  surfuseragent   = 1;  /* Append Surf version to default WebKit user agent */
 static char *fulluseragent  = ""; /* Or override the whole user agent string */
 static char *scriptfile     = "~/.config/surf/script.js";
 static char *styledir       = "~/.config/surf/styles/";
 static char *certdir        = "~/.config/surf/certificates/";
 static char *cachedir       = "~/.config/surf/cache/";
 static char *cookiefile     = "~/.config/surf/cookies.txt";
-#define HS_FILE "~/.config/surf/history"
-#define BM_FILE "~/.config/surf/bookmarks"
 
 static char *bookmarkfile   = BM_FILE;
 static char *historyfile    = HS_FILE;
@@ -25,7 +28,7 @@ static Parameter defconfig[ParameterLast] = {
 	[Certificate]         =       { { .i = 0 },     },
 	[CaretBrowsing]       =       { { .i = 0 },     },
 	[CookiePolicies]      =       { { .v = "@Aa" }, },
-        [DarkMode]            =       { { .i = 0 },     },
+        [DarkMode]            =       { { .i = 1 },     },
 	[DefaultCharset]      =       { { .v = "UTF-8" }, },
 	[DiskCache]           =       { { .i = 1 },     },
 	[DNSPrefetch]         =       { { .i = 0 },     },
@@ -43,7 +46,7 @@ static Parameter defconfig[ParameterLast] = {
 	[MediaManualPlay]     =       { { .i = 1 },     },
 	[PreferredLanguages]  =       { { .v = (char *[]){ NULL } }, },
 	[RunInFullscreen]     =       { { .i = 0 },     },
-	[ScrollBars]          =       { { .i = 1 },     },
+	[ScrollBars]          =       { { .i = 0 },     },
 	[ShowIndicators]      =       { { .i = 0 },     },
 	[SiteQuirks]          =       { { .i = 1 },     },
 	[SmoothScrolling]     =       { { .i = 0 },     },
@@ -57,6 +60,9 @@ static Parameter defconfig[ParameterLast] = {
 };
 
 static UriParameters uriparams[] = {
+	{ "(://|\\.)youtube\\.com(/|$)", {
+	  [Style] = { { .i = 0 }, 1 },
+	}, },
 	{ "(://|\\.)suckless\\.org(/|$)", {
 	  [JavaScript] = { { .i = 0 }, 1 },
 	}, },
@@ -68,29 +74,50 @@ static int winsize[] = { 800, 600 };
 static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
                                     WEBKIT_FIND_OPTIONS_WRAP_AROUND;
 
-#define PROMPT_GO   "Go:"
-#define PROMPT_FIND "Find:"
+#define PROMPT_GO   "Open"
+#define PROMPT_GO_N "Open (new window)"
+#define PROMPT_FIND "Find"
 
 /* SETPROP(readprop, setprop, prompt)*/
 #define SETPROP(r, s, p) { \
         .v = (const char *[]){ "/bin/sh", "-c", \
              "prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
              "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
-             "      -e 's/\\\\\\(.\\)/\\1/g' -e 's/\$//g'" \
-             "      && cat " BM_FILE " " \
-             "      && tail -100 " HS_FILE " | sort -r )\" " \
-             "| dmenu -b -l 20 -p '"p"' -w $1 | awk -F'|' '{if ($2 =="") print $1; else print $2}')\" " \
+             "      -e 's/\\\\\\(.\\)/\\1/g')\" " \
+             "| dmenu -i -b -l 1 -p '"p"' -w $1)\" " \
              "&& xprop -id $1 -f "s" 8u -set "s" \"$prop\"", \
              "surf-setprop", winid, NULL \
         } \
 }
-#define SETPROP_DEFAULT(r, s, p) { \
+
+#define SETPROP_GO(r, s, p) { \
         .v = (const char *[]){ "/bin/sh", "-c", \
-             "prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
+             "HIST=\"$(tac " HS_FILE " | awk -F'|' '!a[$2]++')\" " \
+             "&& prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
              "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
-             "      -e 's/\\\\\\(.\\)/\\1/g' -e 's/\$//g')\"" \
-             "| dmenu -b -p '"p"' -w $1 | awk '{print $NF}')\" " \
-             "&& xprop -id $1 -f "s" 8u -set "s" \"$prop\"", \
+             "      -e 's/\\\\\\(.\\)/\\1/g' "\
+             "      && cat " BM_FILE " && printf '%s\n' \"${HIST}\" " \
+             "      | awk -F'|' '{if(length($2) > 80){print NR\"|\"$1\"|\"substr($2,0,80)\"...|\"$3}else{print NR\"|\"$1\"|\"$2\"|\"$3}}' | column -t -s '|' -o ' ')\" " \
+             "| dmenu -i -b -l 20 -p '"p"' -w $1 | awk '{if(length($3)!=0){print $1}else{print $0}}')\"; " \
+             "[ \"$prop\" ] || exit; " \
+             "[ \"$(echo \"$prop\" | grep -Eo '^\-?[0-9]+$')\" -gt 0 ] && prop=\"$(printf '%s\n' \"${HIST}\" | sed \"${prop}q;d\" | awk -F'|' '{print $2}')\"; " \
+             "xprop -id $1 -f "s" 8u -set "s" \"$prop\"", \
+             "surf-setprop", winid, NULL \
+        } \
+}
+
+#define SETPROP_GO_N(r, s, p) { \
+        .v = (const char *[]){ "/bin/sh", "-c", \
+             "HIST=\"$(tac " HS_FILE " | awk -F'|' '!a[$2]++')\" " \
+             "&& prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
+             "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
+             "      -e 's/\\\\\\(.\\)/\\1/g' "\
+             "      && cat " BM_FILE " && printf '%s\n' \"${HIST}\" " \
+             "      | awk -F'|' '{if(length($2) > 80){print NR\"|\"$1\"|\"substr($2,0,80)\"...|\"$3}else{print NR\"|\"$1\"|\"$2\"|\"$3}}' | column -t -s '|' -o ' ')\" " \
+             "| dmenu -i -b -l 20 -p '"p"' -w $1 | awk '{if(length($3)!=0){print $1}else{print $0}}')\"; " \
+             "[ \"$prop\" ] || exit; " \
+             "[ \"$(echo \"$prop\" | grep -Eo '^\-?[0-9]+$')\" -gt 0 ] && prop=\"$(printf '%s\n' \"${HIST}\" | sed \"${prop}q;d\" | awk -F'|' '{print $2}')\"; " \
+             "surf-open \"$prop\"", \
              "surf-setprop", winid, NULL \
         } \
 }
@@ -140,10 +167,9 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
  */
 static SiteSpecific styles[] = {
 	/* regexp               file in $styledir */
-	/*{ ".*",                 "default.css" },*/
+	//{ ".*",                 "default.css" },
         { ".*startpage.com.*",  "default.css" },
         { ".*suckless.org.*",   "default.css" },
-        { "about:.*",           "default.css" },
 };
 
 /* certificates */
@@ -157,6 +183,16 @@ static SiteSpecific certs[] = {
 
 #define MODKEY GDK_CONTROL_MASK
 
+static char *editscreen[] = { "/bin/sh", "-c", "surf-edit-source", NULL };
+static char *linkselect_curwin [] = { "/bin/sh", "-c",
+    "surf-link-select $0 'Link' | xargs -r xprop -id $0 -f _SURF_GO 8u -set _SURF_GO $1",
+    winid, NULL
+};
+static char *linkselect_newwin [] = { "/bin/sh", "-c",
+    "surf-link-select $0 'Link (new window)' | xargs -r surf-open",
+    winid, NULL
+};
+
 /* hotkeys */
 /*
  * If you use anything else but MODKEY and GDK_SHIFT_MASK, don't forget to
@@ -164,10 +200,14 @@ static SiteSpecific certs[] = {
  */
 static Key keys[] = {
 	/* modifier              keyval          function    arg */
-	{ MODKEY,                GDK_KEY_Return, spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_GO) },
-	{ MODKEY,                GDK_KEY_g,      spawn,      SETPROP_DEFAULT("_SURF_URI", "_SURF_GO", PROMPT_GO) },
-	{ MODKEY,                GDK_KEY_f,      spawn,      SETPROP_DEFAULT("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
-	{ MODKEY,                GDK_KEY_slash,  spawn,      SETPROP_DEFAULT("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
+        { MODKEY,                GDK_KEY_o,      externalpipe, { .v = editscreen } },
+        { MODKEY,                GDK_KEY_d,      externalpipe, { .v = linkselect_curwin } },
+        { MODKEY|GDK_SHIFT_MASK, GDK_KEY_d,      externalpipe, { .v = linkselect_newwin } },
+	{ MODKEY,                GDK_KEY_Return, spawn,      SETPROP_GO("_SURF_URI", "_SURF_GO", PROMPT_GO) },
+	{ MODKEY|GDK_SHIFT_MASK, GDK_KEY_Return, spawn,      SETPROP_GO_N("_SURF_URI", "_SURF_GO", PROMPT_GO_N) },
+	{ MODKEY,                GDK_KEY_g,      spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_GO) },
+	{ MODKEY,                GDK_KEY_f,      spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
+	{ MODKEY,                GDK_KEY_slash,  spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
 	{ MODKEY,                GDK_KEY_m,      spawn,      BM_ADD("_SURF_URI") },
 
 	{ MODKEY,                GDK_KEY_w,      playexternal, { 0 } },
