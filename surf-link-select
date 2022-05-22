@@ -8,7 +8,7 @@
 #     Selected link is normalized based on current URI and printed to STDOUT.
 #     Pipe the result to a new surf or xprop _SURF_URI accordingly.
 SURF_WINDOW="${1:-$(xprop -root | sed -n '/^_NET_ACTIVE_WINDOW/ s/.* //p')}"
-DMENU_PROMPT="${2:-Link}"
+DMENU_PROMPT="${2:-Link:}"
 
 dump_links_with_titles() {
   awk '{

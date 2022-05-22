@@ -134,6 +134,11 @@ typedef struct {
 } Button;
 
 typedef struct {
+	char *token;
+	char *uri;
+} SearchEngine;
+
+typedef struct {
 	const char *uri;
 	Parameter config[ParameterLast];
 	regex_t re;
@@ -221,6 +226,7 @@ static void webprocessterminated(WebKitWebView *v,
                                  Client *c);
 static void closeview(WebKitWebView *v, Client *c);
 static void destroywin(GtkWidget* w, Client *c);
+static gchar *parseuri(const gchar *uri);
 
 /* Hotkeys */
 static void pasteuri(GtkClipboard *clipboard, const char *text, gpointer d);
@@ -660,8 +666,16 @@ loaduri(Client *c, const Arg *a)
 		if (!stat(apath, &st) && (path = realpath(apath, NULL))) {
 			url = g_strdup_printf("file://%s", path);
 			free(path);
-		} else {
-			url = g_strdup_printf("http://%s", uri);
+                } else {
+                        regex_t urlregex;
+                        int urlcheck;
+                        urlcheck = regcomp(&urlregex, "^[a-z0-9-]+[.][a-z.]+[^[:space:]]*$", REG_EXTENDED | REG_ICASE);
+                        urlcheck = regexec(&urlregex, uri, 0, NULL, 0);
+                        if (!urlcheck)
+                            url = g_strdup_printf("http://%s", uri);
+                        else
+                            url = parseuri(uri);
+                        regfree(&urlregex);
 		}
 		if (apath != uri)
 			free(apath);
@@ -1427,7 +1441,7 @@ processx(GdkXEvent *e, GdkEvent *event, gpointer d)
 				find(c, NULL);
 
 				return GDK_FILTER_REMOVE;
-			} else if (ev->atom == atoms[AtomGo]) {
+                        } else if (ev->atom == atoms[AtomGo]) {
 				a.v = getatom(c, AtomGo);
 				loaduri(c, &a);
 
@@ -1882,6 +1896,22 @@ destroywin(GtkWidget* w, Client *c)
 	destroyclient(c);
 	if (!clients)
 		gtk_main_quit();
+}
+
+gchar *
+parseuri(const gchar *uri) {
+	guint i;
+
+	for (i = 0; i < LENGTH(searchengines); i++) {
+		if (searchengines[i].token == NULL || searchengines[i].uri == NULL ||
+		    *(uri + strlen(searchengines[i].token)) != ' ')
+			continue;
+		if (g_str_has_prefix(uri, searchengines[i].token))
+			return g_strdup_printf(searchengines[i].uri,
+					       uri + strlen(searchengines[i].token) + 1);
+	}
+
+        return g_strdup_printf("%s%s", searchengine, uri);
 }
 
 void

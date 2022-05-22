@@ -1,6 +1,6 @@
 /* modifier 0 means no modifier */
-
-//#define HOMEPAGE "https://duckduckgo.com/"
+//#define HOMEPAGE "https://yandex.com/"
+#define DOWNLOADS "~/Downloads"
 #define HS_FILE "~/.config/surf/history"
 #define BM_FILE "~/.config/surf/bookmarks"
 
@@ -14,6 +14,14 @@ static char *cookiefile     = "~/.config/surf/cookies.txt";
 
 static char *bookmarkfile   = BM_FILE;
 static char *historyfile    = HS_FILE;
+
+static char *searchengine = "https://yandex.com/search/?text=";
+
+static SearchEngine searchengines[] = {
+    { "wt", "https://www.wiktionary.org/search-redirect.php?family=wiktionary&search=%s" },
+    { "aw", "https://wiki.archlinux.org/index.php?search=%s" },
+    { "yt", "https://www.youtube.com/results?search_query=%s" },
+};
 
 /* Webkit default features */
 /* Highest priority value will be used.
@@ -39,8 +47,8 @@ static Parameter defconfig[ParameterLast] = {
 	[Geolocation]         =       { { .i = 0 },     },
 	[HideBackground]      =       { { .i = 0 },     },
 	[Inspector]           =       { { .i = 0 },     },
-	[Java]                =       { { .i = 1 },     },
-	[JavaScript]          =       { { .i = 1 },     },
+	[Java]                =       { { .i = 0 },     },
+	[JavaScript]          =       { { .i = 0 },     },
 	[KioskMode]           =       { { .i = 0 },     },
 	[LoadImages]          =       { { .i = 1 },     },
 	[MediaManualPlay]     =       { { .i = 1 },     },
@@ -60,8 +68,12 @@ static Parameter defconfig[ParameterLast] = {
 };
 
 static UriParameters uriparams[] = {
-	{ "(://|\\.)youtube\\.com(/|$)", {
-	  [Style] = { { .i = 0 }, 1 },
+	{ "(://|\\.)(github\\.com|gitlab\\.com)(/|$)", {
+	  [JavaScript] = { { .i = 1 }, 1 },
+	}, },
+	{ "(://|\\.)(youtube\\.com|localhost:9091)(/|$)", {
+	  [JavaScript] = { { .i = 1 }, 1 },
+          [Style] = { { .i = 0 }, 1 },
 	}, },
 	{ "(://|\\.)suckless\\.org(/|$)", {
 	  [JavaScript] = { { .i = 0 }, 1 },
@@ -74,50 +86,30 @@ static int winsize[] = { 800, 600 };
 static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
                                     WEBKIT_FIND_OPTIONS_WRAP_AROUND;
 
-#define PROMPT_GO   "Open"
-#define PROMPT_GO_N "Open (new window)"
-#define PROMPT_FIND "Find"
+#define PROMPT_GO   "Go:"
+#define PROMPT_NEW  "Go: (new window)"
+#define PROMPT_FIND "Find:"
 
 /* SETPROP(readprop, setprop, prompt)*/
 #define SETPROP(r, s, p) { \
         .v = (const char *[]){ "/bin/sh", "-c", \
+             "WIDTH=\"$(xwininfo -id $1 | awk '/Width/{print int($2/5/3)}')\"; " \
+             "HIST=\"$(tac " HS_FILE " | awk -F'|' '!a[$2]++')\"; " \
+             "if [ \"${WIDTH}\" -lt 30 ]; then " \
+             "  HIST_TABLE=\"$(printf '%s\n' \"${HIST}\" | awk -F'|' '{print NR\"|\"$3}')\";" \
+             "elif [ \"${WIDTH}\" -lt 50 ]; then" \
+             "  HIST_TABLE=\"$(printf '%s\n' \"${HIST}\" | awk -F'|' '{if(length($2) > '\"$WIDTH\"'){print NR\"|\"substr($2,0,'\"$WIDTH\"')\"...|\"$3}else{print NR\"|\"$2\"|\"$3}}')\"; " \
+             "else HIST_TABLE=\"$(printf '%s\n' \"${HIST}\" | awk -F'|' '{if(length($2) > '\"$WIDTH\"'){print NR\"|\"$1\"|\"substr($2,0,'\"$WIDTH\"')\"...|\"$3}else{print NR\"|\"$1\"|\"$2\"|\"$3}}')\"; fi; " \
              "prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
              "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
-             "      -e 's/\\\\\\(.\\)/\\1/g')\" " \
-             "| dmenu -i -b -l 1 -p '"p"' -w $1)\" " \
-             "&& xprop -id $1 -f "s" 8u -set "s" \"$prop\"", \
-             "surf-setprop", winid, NULL \
-        } \
-}
-
-#define SETPROP_GO(r, s, p) { \
-        .v = (const char *[]){ "/bin/sh", "-c", \
-             "HIST=\"$(tac " HS_FILE " | awk -F'|' '!a[$2]++')\" " \
-             "&& prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
-             "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
              "      -e 's/\\\\\\(.\\)/\\1/g' "\
-             "      && cat " BM_FILE " && printf '%s\n' \"${HIST}\" " \
-             "      | awk -F'|' '{if(length($2) > 80){print NR\"|\"$1\"|\"substr($2,0,80)\"...|\"$3}else{print NR\"|\"$1\"|\"$2\"|\"$3}}' | column -t -s '|' -o ' ')\" " \
+             "      && [ \""p"\" != \""PROMPT_FIND"\" ]" \
+             "      && cat " BM_FILE " " \
+             "      && printf '%s\n' \"${HIST_TABLE}\" | column -t -s '|' -o ' ')\" " \
              "| dmenu -i -b -l 20 -p '"p"' -w $1 | awk '{if(length($3)!=0){print $1}else{print $0}}')\"; " \
              "[ \"$prop\" ] || exit; " \
              "[ \"$(echo \"$prop\" | grep -Eo '^\-?[0-9]+$')\" -gt 0 ] && prop=\"$(printf '%s\n' \"${HIST}\" | sed \"${prop}q;d\" | awk -F'|' '{print $2}')\"; " \
-             "xprop -id $1 -f "s" 8u -set "s" \"$prop\"", \
-             "surf-setprop", winid, NULL \
-        } \
-}
-
-#define SETPROP_GO_N(r, s, p) { \
-        .v = (const char *[]){ "/bin/sh", "-c", \
-             "HIST=\"$(tac " HS_FILE " | awk -F'|' '!a[$2]++')\" " \
-             "&& prop=\"$(printf '%b' \"$(xprop -id $1 "r" " \
-             "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
-             "      -e 's/\\\\\\(.\\)/\\1/g' "\
-             "      && cat " BM_FILE " && printf '%s\n' \"${HIST}\" " \
-             "      | awk -F'|' '{if(length($2) > 80){print NR\"|\"$1\"|\"substr($2,0,80)\"...|\"$3}else{print NR\"|\"$1\"|\"$2\"|\"$3}}' | column -t -s '|' -o ' ')\" " \
-             "| dmenu -i -b -l 20 -p '"p"' -w $1 | awk '{if(length($3)!=0){print $1}else{print $0}}')\"; " \
-             "[ \"$prop\" ] || exit; " \
-             "[ \"$(echo \"$prop\" | grep -Eo '^\-?[0-9]+$')\" -gt 0 ] && prop=\"$(printf '%s\n' \"${HIST}\" | sed \"${prop}q;d\" | awk -F'|' '{print $2}')\"; " \
-             "surf-open \"$prop\"", \
+             "if [ \""p"\" != \""PROMPT_NEW"\" ]; then xprop -id $1 -f "s" 8u -set "s" \"$prop\"; else surf-open \"$prop\"; fi", \
              "surf-setprop", winid, NULL \
         } \
 }
@@ -125,7 +117,7 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
 /* DOWNLOAD(URI, referer) */
 #define DOWNLOAD(u, r) { \
         .v = (const char *[]){ "st", "-c", "st-float", "-e", "/bin/sh", "-c",\
-             "cd ~/Downloads;" \
+             "cd " DOWNLOADS ";" \
              "curl -g -L -J -O -A \"$1\" -b \"$2\" -c \"$2\"" \
              " -e \"$3\" \"$4\"; read", \
              "surf-download", useragent, cookiefile, r, u, NULL \
@@ -145,7 +137,7 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
 /* VIDEOPLAY(URI) */
 #define VIDEOPLAY(u) {\
         .v = (const char *[]){ "/bin/sh", "-c", \
-             "setsid -f open \"$0\"", u, NULL \
+             "mpv \"$0\"", u, NULL \
         } \
 }
 
@@ -167,9 +159,9 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
  */
 static SiteSpecific styles[] = {
 	/* regexp               file in $styledir */
-	//{ ".*",                 "default.css" },
-        { ".*startpage.com.*",  "default.css" },
-        { ".*suckless.org.*",   "default.css" },
+	{ ".*",                 "default.css" },
+        //{ ".*suckless.org.*",   "default.css" },
+        //{ ".*yandex.com.*",   "default.css" },
 };
 
 /* certificates */
@@ -185,11 +177,15 @@ static SiteSpecific certs[] = {
 
 static char *editscreen[] = { "/bin/sh", "-c", "surf-edit-source", NULL };
 static char *linkselect_curwin [] = { "/bin/sh", "-c",
-    "surf-link-select $0 'Link' | xargs -r xprop -id $0 -f _SURF_GO 8u -set _SURF_GO $1",
+    "surf-link-select $0 'Link:' | xargs -r xprop -id $0 -f _SURF_GO 8u -set _SURF_GO $1",
     winid, NULL
 };
 static char *linkselect_newwin [] = { "/bin/sh", "-c",
-    "surf-link-select $0 'Link (new window)' | xargs -r surf-open",
+    "surf-link-select $0 'Link: (new window)' | xargs -r surf-open",
+    winid, NULL
+};
+static char *linkselect_open [] = { "/bin/sh", "-c",
+    "surf-link-select $0 'Link: (file handler)' | xargs -r xdg-open",
     winid, NULL
 };
 
@@ -200,20 +196,26 @@ static char *linkselect_newwin [] = { "/bin/sh", "-c",
  */
 static Key keys[] = {
 	/* modifier              keyval          function    arg */
-        { MODKEY,                GDK_KEY_o,      externalpipe, { .v = editscreen } },
-        { MODKEY,                GDK_KEY_d,      externalpipe, { .v = linkselect_curwin } },
-        { MODKEY|GDK_SHIFT_MASK, GDK_KEY_d,      externalpipe, { .v = linkselect_newwin } },
-	{ MODKEY,                GDK_KEY_Return, spawn,      SETPROP_GO("_SURF_URI", "_SURF_GO", PROMPT_GO) },
-	{ MODKEY|GDK_SHIFT_MASK, GDK_KEY_Return, spawn,      SETPROP_GO_N("_SURF_URI", "_SURF_GO", PROMPT_GO_N) },
 	{ MODKEY,                GDK_KEY_g,      spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_GO) },
+	{ MODKEY|GDK_SHIFT_MASK, GDK_KEY_g,      spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_NEW) },
+	{ MODKEY,                GDK_KEY_Return, spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_GO) },
+	{ MODKEY|GDK_SHIFT_MASK, GDK_KEY_Return, spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_NEW) },
 	{ MODKEY,                GDK_KEY_f,      spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
 	{ MODKEY,                GDK_KEY_slash,  spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
 	{ MODKEY,                GDK_KEY_m,      spawn,      BM_ADD("_SURF_URI") },
 
+        { MODKEY,                GDK_KEY_e,      externalpipe, { .v = editscreen } },
+        { MODKEY,                GDK_KEY_o,      externalpipe, { .v = linkselect_curwin } },
+        { MODKEY|GDK_SHIFT_MASK, GDK_KEY_o,      externalpipe, { .v = linkselect_newwin } },
+
 	{ MODKEY,                GDK_KEY_w,      playexternal, { 0 } },
+        { MODKEY|GDK_SHIFT_MASK, GDK_KEY_w,      externalpipe, { .v = linkselect_open } },
 
 	{ 0,                     GDK_KEY_Escape, stop,       { 0 } },
 	{ MODKEY,                GDK_KEY_c,      stop,       { 0 } },
+
+	{ GDK_SHIFT_MASK,	 GDK_KEY_F5,     reload,     { .i = 1 } },
+	{ 0,			 GDK_KEY_F5,     reload,     { .i = 0 } },
 
 	{ MODKEY|GDK_SHIFT_MASK, GDK_KEY_r,      reload,     { .i = 1 } },
 	{ MODKEY,                GDK_KEY_r,      reload,     { .i = 0 } },
@@ -271,3 +273,4 @@ static Button buttons[] = {
 	{ OnAny,        0,              9,      clicknavigate,  { .i = +1 },    1 },
 	{ OnMedia,      MODKEY,         1,      clickexternplayer, { 0 },       1 },
 };
+
