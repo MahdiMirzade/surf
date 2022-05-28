@@ -204,18 +204,18 @@ static Key keys[] = {
 	{ MODKEY,                GDK_KEY_slash,  spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
 	{ MODKEY,                GDK_KEY_m,      spawn,      BM_ADD("_SURF_URI") },
 
-        { MODKEY,                GDK_KEY_e,      externalpipe, { .v = editscreen } },
-        { MODKEY,                GDK_KEY_o,      externalpipe, { .v = linkselect_curwin } },
-        { MODKEY|GDK_SHIFT_MASK, GDK_KEY_o,      externalpipe, { .v = linkselect_newwin } },
+    { MODKEY,                GDK_KEY_e,      externalpipe, { .v = editscreen } },
+    { MODKEY,                GDK_KEY_o,      externalpipe, { .v = linkselect_curwin } },
+    { MODKEY|GDK_SHIFT_MASK, GDK_KEY_o,      externalpipe, { .v = linkselect_newwin } },
 
 	{ MODKEY,                GDK_KEY_w,      playexternal, { 0 } },
-        { MODKEY|GDK_SHIFT_MASK, GDK_KEY_w,      externalpipe, { .v = linkselect_open } },
+    { MODKEY|GDK_SHIFT_MASK, GDK_KEY_w,      externalpipe, { .v = linkselect_open } },
 
 	{ 0,                     GDK_KEY_Escape, stop,       { 0 } },
 	{ MODKEY,                GDK_KEY_c,      stop,       { 0 } },
 
-	{ GDK_SHIFT_MASK,	 GDK_KEY_F5,     reload,     { .i = 1 } },
-	{ 0,			 GDK_KEY_F5,     reload,     { .i = 0 } },
+	{ GDK_SHIFT_MASK,        GDK_KEY_F5,     reload,     { .i = 1 } },
+	{ 0,			         GDK_KEY_F5,     reload,     { .i = 0 } },
 
 	{ MODKEY|GDK_SHIFT_MASK, GDK_KEY_r,      reload,     { .i = 1 } },
 	{ MODKEY,                GDK_KEY_r,      reload,     { .i = 0 } },
