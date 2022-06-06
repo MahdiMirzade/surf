@@ -36,7 +36,7 @@ static Parameter defconfig[ParameterLast] = {
 	[Certificate]         =       { { .i = 0 },     },
 	[CaretBrowsing]       =       { { .i = 0 },     },
 	[CookiePolicies]      =       { { .v = "@Aa" }, },
-        [DarkMode]            =       { { .i = 1 },     },
+	[DarkMode]            =       { { .i = 1 },     },
 	[DefaultCharset]      =       { { .v = "UTF-8" }, },
 	[DiskCache]           =       { { .i = 1 },     },
 	[DNSPrefetch]         =       { { .i = 0 },     },
@@ -94,7 +94,7 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
 #define SETPROP(r, s, p) { \
         .v = (const char *[]){ "/bin/sh", "-c", \
              "WIDTH=\"$(xwininfo -id $1 | awk '/Width/{print int($2/5/3)}')\"; " \
-             "HIST=\"$(tac " HS_FILE " | awk -F'|' '!a[$2]++')\"; " \
+             "HIST=\"$(tac " HS_FILE " 2>/dev/null | awk -F'|' '!a[$2]++')\"; " \
              "if [ \"${WIDTH}\" -lt 30 ]; then " \
              "  HIST_TABLE=\"$(printf '%s\n' \"${HIST}\" | awk -F'|' '{print NR\"|\"$3}')\";" \
              "elif [ \"${WIDTH}\" -lt 50 ]; then" \
@@ -104,7 +104,7 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
              "| sed -e 's/^"r"(UTF8_STRING) = \"\\(.*\\)\"/\\1/' " \
              "      -e 's/\\\\\\(.\\)/\\1/g' "\
              "      && [ \""p"\" != \""PROMPT_FIND"\" ]" \
-             "      && cat " BM_FILE " " \
+             "      && cat " BM_FILE " 2>/dev/null " \
              "      && printf '%s\n' \"${HIST_TABLE}\" | column -t -s '|' -o ' ')\" " \
              "| dmenu -i -b -l 20 -p '"p"' -w $1 | awk '{if(length($3)!=0){print $1}else{print $0}}')\"; " \
              "[ \"$prop\" ] || exit; " \
